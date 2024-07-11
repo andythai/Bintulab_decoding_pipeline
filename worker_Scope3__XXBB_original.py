@@ -2,17 +2,17 @@
 #activate cellpose&&python "C:\Scripts\NMERFISH\worker_Scope3__XXBB.py"
 
 from multiprocessing import Pool, TimeoutError
-import time,sys
-import os,sys,numpy as np
+import time, sys
+import os, sys, numpy as np
 
-master_analysis_folder = r'C:\Scripts\NMERFISH' ## where the code libes
-lib_fl = r'C:\Scripts\NMERFISH\codebooks\custom_rig_300GP_21_bits_new.csv' ### codebook
+master_analysis_folder = r'C:\\Scripts\\NMERFISH' ## where the code libes
+lib_fl = r'C:\\Scripts\\NMERFISH\\codebooks\\custom_rig_300GP_21_bits_new.csv' ### codebook
 ### Did you compute PSF and median flat field images?
 #psf_file = r'C:\Scripts\NMERFISH\psfs\psf_750_Scope3_final.npy' # PSF based  on data form Scope at Bintu lab
-psf_file = r'C:\Scripts\Scope_Zik1_params\psf\psf_cy3_zik1_shortTube.npy'
+psf_file = r'C:\\Scripts\\Scope_Zik1_params\\psf\\psf_cy3_zik1_shortTube.npy'
 
 #master_data_folders = [r'Y:\Lab\MERFISH_Imaging_data\06_18_2023_RzA3A6_1_hemi' ]
-master_data_folders = [r'Y:\Lab\MERFISH_Imaging_data\20240406_MD_191']
+master_data_folders = [r'Y:\\Lab\\MERFISH_Imaging_data\\20240406_MD_191']
 #save_folder =r'\\192.168.0.7\bbfishmahsa3\CGBB_embryo_4_28_2023\MERFISH_AnalysisP12'
 save_folder = os.path.join(master_data_folders[-1],'MERFISH_Analysis')
 iHm=1 #H iHmin -> H iHmax oly keeps folders of the the form H33,H34...
@@ -32,7 +32,7 @@ def compute_drift(save_folder,fov,all_flds,set_,redo=False,gpu=False):
     #print(all_flds)
     
     # defulat name of the drift file 
-    drift_fl = save_folder+os.sep+'driftNew_'+fov.split('.')[0]+'--'+set_+'.pkl'
+    drift_fl = save_folder + os.sep + 'driftNew_' + fov.split('.')[0] + ' --' + set_ + '.pkl'
     
     iiref = None
     fl_ref = None
@@ -41,11 +41,11 @@ def compute_drift(save_folder,fov,all_flds,set_,redo=False,gpu=False):
         redo = True
     else:
         try:
-            drifts_,all_flds_,fov_,fl_ref = pickle.load(open(drift_fl,'rb'))
-            all_tags_ = np.array([os.path.basename(fld)for fld in all_flds_])
-            all_tags = np.array([os.path.basename(fld)for fld in all_flds])
-            iiref = np.argmin([np.sum(np.abs(drift[0]))for drift in drifts_])
-            previous_drift = {tag:drift for drift,tag in zip(drifts_,all_tags_)}
+            drifts_, all_flds_, fov_, fl_ref = pickle.load(open(drift_fl,'rb'))
+            all_tags_ = np.array([os.path.basename(fld) for fld in all_flds_])
+            all_tags = np.array([os.path.basename(fld) for fld in all_flds])
+            iiref = np.argmin([np.sum(np.abs(drift[0])) for drift in drifts_])
+            previous_drift = {tag:drift for drift, tag in zip(drifts_, all_tags_)}
 
             if not (len(all_tags_)==len(all_tags)):
                 redo = True

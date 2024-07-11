@@ -7,6 +7,7 @@ Andy Thai
 """
 # activate cellpose&&python "C:\Scripts\NMERFISH\worker_Scope3__XXBB.py"
 
+# Import standard library
 from multiprocessing import Pool, TimeoutError
 import time
 import os
@@ -14,8 +15,10 @@ from os.path import join
 import sys
 import numpy as np
 
-master_analysis_folder = r'C:\Scripts\NMERFISH'    ## where the code libes
-lib_fl = r'custom_rig_300GP_21_bits_new.csv'       ### codebook
+master_analysis_folder = r'C:\\Scripts\NMERFISH'    ## where the code libes
+lib_fl = r'custom_rig_300GP_21_bits.csv'       ### codebook
+sys.path.append(master_analysis_folder)
+
 
 # Did you compute PSF and median flat field images?
 # psf_file = r'C:\Scripts\NMERFISH\psfs\psf_750_Scope3_final.npy'
@@ -33,11 +36,10 @@ iHM = 7
 
 global start_time
 
-sys.path.append(master_analysis_folder)
 from ioMicro import *
 
 
-def compute_drift(save_folder, fov, all_flds, set_, redo=False, gpu=False):
+def compute_drift(save_folder, fov, all_flds, set_, redo: bool=False, gpu: bool=False):
     """
     save_folder where to save analyzed data
     fov - i.e. Conv_zscan_005.zarr
@@ -48,7 +50,7 @@ def compute_drift(save_folder, fov, all_flds, set_, redo=False, gpu=False):
     #print(all_flds)
     
     # defulat name of the drift file 
-    drift_fl = save_folder+os.sep+'driftNew_'+fov.split('.')[0]+'--'+set_+'.pkl'
+    drift_fl = save_folder + os.sep + 'driftNew_' + fov.split('.')[0] + '--' + set_ + '.pkl'
     
     iiref = None
     fl_ref = None
@@ -57,30 +59,30 @@ def compute_drift(save_folder, fov, all_flds, set_, redo=False, gpu=False):
         redo = True
     else:
         try:
-            drifts_,all_flds_,fov_,fl_ref = pickle.load(open(drift_fl,'rb'))
-            all_tags_ = np.array([os.path.basename(fld)for fld in all_flds_])
-            all_tags = np.array([os.path.basename(fld)for fld in all_flds])
-            iiref = np.argmin([np.sum(np.abs(drift[0]))for drift in drifts_])
-            previous_drift = {tag:drift for drift,tag in zip(drifts_,all_tags_)}
+            drifts_, all_flds_, fov_, fl_ref = pickle.load(open(drift_fl, 'rb'))
+            all_tags_ = np.array([os.path.basename(fld) for fld in all_flds_])
+            all_tags = np.array([os.path.basename(fld) for fld in all_flds])
+            iiref = np.argmin([np.sum(np.abs(drift[0])) for drift in drifts_])
+            previous_drift = {tag:drift for drift, tag in zip(drifts_, all_tags_)}
 
-            if not (len(all_tags_)==len(all_tags)):
+            if not (len(all_tags_) == len(all_tags)):
                 redo = True
             else:
-                if not np.all(np.sort(all_tags_)==np.sort(all_tags)):
+                if not np.all(np.sort(all_tags_) == np.sort(all_tags)):
                     redo = True
         except:
             os.remove(drift_fl)
-            redo=True
+            redo = True
     if redo:
-        previous_drift={}
-        fls = [fld+os.sep+fov for fld in all_flds]
+        previous_drift = {}
+        fls = [fld + os.sep + fov for fld in all_flds]
         if fl_ref is None:
             #fl_ref = fls[len(fls)//2]  # this assigns the middle hybridization round as the reference round. Sometime better to instead use hyb1 as reference
             fl_ref = fls[0]
         obj = None
         newdrifts = []
         all_fldsT = []
-        print("Files to perform drift correction:",fls)
+        print("Files to perform drift correction:", fls)
         # for fl in tqdm(fls):
         for fl in fls:
             fld = os.path.dirname(fl)
@@ -88,64 +90,62 @@ def compute_drift(save_folder, fov, all_flds, set_, redo=False, gpu=False):
             new_drift_info = previous_drift.get(tag,None)
             if new_drift_info is None:
                 if obj is None:
-                    obj = fine_drift(fl_ref,fl,sz_block=600)
+                    obj = fine_drift(fl_ref, fl, sz_block=600)
                 else:
-                    obj.get_drift(fl_ref,fl)
-                new_drift = -(obj.drft_minus+obj.drft_plus)/2
-                new_drift_info = [new_drift,obj.drft_minus,obj.drft_plus,obj.drift,obj.pair_minus,obj.pair_plus]
+                    obj.get_drift(fl_ref, fl)
+                new_drift = -(obj.drft_minus + obj.drft_plus) / 2
+                new_drift_info = [new_drift, obj.drft_minus, obj.drft_plus, obj.drift, obj.pair_minus, obj.pair_plus]
             #print(new_drift_info)
             newdrifts.append(new_drift_info)
             all_fldsT.append(fld)
-            pickle.dump([newdrifts,all_fldsT,fov,fl_ref],open(drift_fl,'wb'))
+            pickle.dump([newdrifts, all_fldsT, fov, fl_ref], open(drift_fl, 'wb'))
 
 
-def compute_drift_features(save_folder, fov, all_flds, set_, redo=False, gpu=True):
-    fls = [fld+os.sep+fov for fld in all_flds]
+def compute_drift_features(save_folder, fov, all_flds, set_, redo: bool=False, gpu: bool=True):
+    fls = [fld + os.sep + fov for fld in all_flds]
     for fl in fls:
-        icol=3
+        icol = 3
         #im_med_fl = save_folder+os.sep+'med_col_raw'+str(icol)+'.npz'#### mistake
         im_med_fl = None #  no med_fl for single FOV experiment
-        get_dapi_features(fl,save_folder,set_,gpu=gpu,im_med_fl = im_med_fl,
-                    psf_fl = psf_file)
+        get_dapi_features(fl, save_folder, set_, gpu=gpu, im_med_fl=im_med_fl, psf_fl=psf_file)
 
 
 def get_best_translation_pointsV2(fl, fl_ref, save_folder, set_, resc=5):
     
-    obj = get_dapi_features(fl,save_folder,set_)
-    obj_ref = get_dapi_features(fl_ref,save_folder,set_)
-    tzxyf,tzxy_plus,tzxy_minus,N_plus,N_minus = np.array([0,0,0]),np.array([0,0,0]),np.array([0,0,0]),0,0
-    if (len(obj.Xh_plus)>0) and (len(obj_ref.Xh_plus)>0):
-        X = obj.Xh_plus[:,:3]
-        X_ref = obj_ref.Xh_plus[:,:3]
-        tzxy_plus,N_plus = get_best_translation_points(X,X_ref,resc=resc,return_counts=True)
-    if (len(obj.Xh_minus)>0) and (len(obj_ref.Xh_minus)>0):
-        X = obj.Xh_minus[:,:3]
-        X_ref = obj_ref.Xh_minus[:,:3]
-        tzxy_minus,N_minus = get_best_translation_points(X,X_ref,resc=resc,return_counts=True)
-    if np.max(np.abs(tzxy_minus-tzxy_plus))<=2:
-        tzxyf = -(tzxy_plus*N_plus+tzxy_minus*N_minus)/(N_plus+N_minus)
+    obj = get_dapi_features(fl, save_folder, set_)
+    obj_ref = get_dapi_features(fl_ref, save_folder, set_)
+    tzxyf, tzxy_plus, tzxy_minus, N_plus, N_minus = np.array([0, 0, 0]), np.array([0, 0, 0]), np.array([0, 0, 0]), 0, 0
+    if (len(obj.Xh_plus) > 0) and (len(obj_ref.Xh_plus) > 0):
+        X = obj.Xh_plus[:, :3]
+        X_ref = obj_ref.Xh_plus[:, :3]
+        tzxy_plus, N_plus = get_best_translation_points(X, X_ref, resc=resc, return_counts=True)
+    if (len(obj.Xh_minus) > 0) and (len(obj_ref.Xh_minus) > 0):
+        X = obj.Xh_minus[:, :3]
+        X_ref = obj_ref.Xh_minus[:, :3]
+        tzxy_minus,N_minus = get_best_translation_points(X, X_ref, resc=resc, return_counts=True)
+    if np.max(np.abs(tzxy_minus - tzxy_plus)) <= 2:
+        tzxyf = -(tzxy_plus * N_plus + tzxy_minus * N_minus) / (N_plus + N_minus)
     else:
-        tzxyf = -[tzxy_plus,tzxy_minus][np.argmax([N_plus,N_minus])]
+        tzxyf = -[tzxy_plus, tzxy_minus][np.argmax([N_plus, N_minus])]
+    return [tzxyf, tzxy_plus, tzxy_minus, N_plus, N_minus]
 
-    return [tzxyf,tzxy_plus,tzxy_minus,N_plus,N_minus]
 
-
-def compute_drift_V2(save_folder, fov, all_flds, set_, redo=False, gpu=True):
-    drift_fl = save_folder+os.sep+'driftNew_'+fov.split('.')[0]+'--'+set_+'.pkl'
+def compute_drift_V2(save_folder, fov, all_flds, set_, redo: bool=False, gpu: bool=True):
+    drift_fl = save_folder + os.sep + 'driftNew_' + fov.split('.')[0] + '--' + set_ + '.pkl'
     if not os.path.exists(drift_fl) or redo:
-        fls = [fld+os.sep+fov for fld in all_flds]
+        fls = [fld + os.sep + fov for fld in all_flds]
         #fl_ref = fls[len(fls)//2]  # this assigns the middle hybridization round as the reference round.
                                    # But sometime better to instead use hyb1 as reference
         fl_ref = fls[0]                           
         newdrifts = []
         for fl in fls:
-            drft = get_best_translation_pointsV2(fl,fl_ref,save_folder,set_,resc=5)
-            print(drft)
+            drft = get_best_translation_pointsV2(fl, fl_ref, save_folder, set_, resc=5)
+            # print(drft)
             newdrifts.append(drft)
-        pickle.dump([newdrifts,all_flds,fov,fl_ref],open(drift_fl,'wb'))
+        pickle.dump([newdrifts, all_flds, fov, fl_ref],open(drift_fl, 'wb'))
 
 
-def main_do_compute_fits_parael(save_folder, im__, icol, save_fl, psf, old_method):
+def main_do_compute_fits_paral(save_folder, im__, icol, save_fl, psf, old_method):
 
     # file: xxx/H1_MER/Conv_zscan__0614.zarr
     # dast.array, shape (4, 25, 2800, 2800), dtype uint16
@@ -163,12 +163,12 @@ def main_do_compute_fits_parael(save_folder, im__, icol, save_fl, psf, old_metho
                                       delta_fit=3, sigmaZ=1, sigmaXY=1.5, gpu=False)
     else:
         # new method
-        fl_med = save_folder+os.sep+'med_col_raw'+str(icol)+'.npz'       # mistake
+        fl_med = save_folder + os.sep + 'med_col_raw' + str(icol) + '.npz'       # mistake
         # to normalize the image?
         if os.path.exists(fl_med):
             im_med = np.array(np.load(fl_med)['im'], dtype=np.float32)
             im_med = cv2.blur(im_med, (20, 20))
-            im__ = im__/im_med*np.median(im_med)
+            im__ = im__ / im_med * np.median(im_med)
         try:
             Xh = get_local_max_tile(im__, th=3600, s_=500, pad=100, psf=psf, plt_val=None,
                                     snorm=30, gpu=True, deconv={'method': 'wiener', 'beta': 0.0001},
@@ -176,9 +176,9 @@ def main_do_compute_fits_parael(save_folder, im__, icol, save_fl, psf, old_metho
             
         except:
             # doesn't use gpu
-            Xh = get_local_max_tile(im__,th=3600,s_ = 500,pad=100,psf=psf,plt_val=None,snorm=30,gpu=False,
-                                    deconv={'method':'wiener','beta':0.0001},
-                                    delta=1,delta_fit=3,sigmaZ=1,sigmaXY=1.5)
+            Xh = get_local_max_tile(im__, th=3600, s_ = 500, pad=100, psf=psf, plt_val=None, snorm=30, gpu=False,
+                                    deconv={'method':'wiener', 'beta':0.0001},
+                                    delta=1, delta_fit=3, sigmaZ=1, sigmaXY=1.5)
     np.savez_compressed(save_fl, Xh=Xh)
 
 
@@ -207,16 +207,15 @@ def fits_starmap_f(fld, save_folder, fov, redo=False, ncols=4, psf_file=psf_file
         if not os.path.exists(save_fl) or redo:
             if try_mode:
                 try:
-                    main_do_compute_fits_parael(save_folder, im__, icol, save_fl, psf, old_method)
+                    main_do_compute_fits_paral(save_folder, im__, icol, save_fl, psf, old_method)
                 except:
                     print("Failed", fld, fov, icol)
             else:
-                main_do_compute_fits_parael(save_folder, im__, icol, save_fl, psf, old_method)
+                main_do_compute_fits_paral(save_folder, im__, icol, save_fl, psf, old_method)
 
 
 def compute_fits_paral(save_folder, fov, all_flds, redo=False, ncols=4,
                        psf_file=psf_file, try_mode=True, old_method=False):
-
     # save_folder: global save path
     # all filds: ['H1_MER' ~ 'H7_MER']
     # fov: input .zarr file name, eg. Conv_zscan__0614.zarr
@@ -233,15 +232,198 @@ def compute_fits_paral(save_folder, fov, all_flds, redo=False, ncols=4,
                                          [ncols for _ in range(len(all_flds))],
                                          [psf_file for _ in range(len(all_flds))],
                                          [try_mode for _ in range(len(all_flds))],
-                                         [old_method for _ in range(len(all_flds))])
-                     )
-    return
+                                         [old_method for _ in range(len(all_flds))]))
+
+
+def main_do_compute_fits_paral2(save_folder, im__, icol, save_fl, psf, old_method, try_mode=True):
+    # channel level parallelization
+    # file: xxx/H1_MER/Conv_zscan__0614.zarr
+    # dast.array, shape (4, 25, 2800, 2800), dtype uint16
+    # im_ = read_im(fld+os.sep+fov)
+    # # (25, 2800, 2800), dtype float32
+    # im__ = np.array(im_[icol], dtype=np.float32)
+
+    # old_method=False
+    if old_method:
+        # previous method
+        im_n = norm_slice(im__, s=30)
+        # Xh = get_local_max(im_n,500,im_raw=im__,dic_psf=None,delta=1,delta_fit=3,dbscan=True,
+        #      return_centers=False,mins=None,sigmaZ=1,sigmaXY=1.5)
+        Xh = get_local_maxfast_tensor(im_n, th_fit=500, im_raw=im__, dic_psf=None, delta=1,
+                                      delta_fit=3, sigmaZ=1, sigmaXY=1.5, gpu=False)
+    else:
+        # new method
+        fl_med = save_folder + os.sep + 'med_col_raw' + str(icol) + '.npz'  # mistake
+        # to normalize the image?
+        if os.path.exists(fl_med):
+            im_med = np.array(np.load(fl_med)['im'], dtype=np.float32)
+            im_med = cv2.blur(im_med, (20, 20))
+            im__ = im__ / im_med * np.median(im_med)
+        try:
+            Xh = get_local_max_tile(im__, th=3600, s_=500, pad=100, psf=psf, plt_val=None,
+                                    snorm=30, gpu=True, deconv={'method': 'wiener', 'beta': 0.0001},
+                                    delta=1, delta_fit=3, sigmaZ=1, sigmaXY=1.5)
+
+        except:
+            # doesn't use gpu
+            Xh = get_local_max_tile(im__, th=3600, s_=500, pad=100, psf=psf, plt_val=None, snorm=30, gpu=False,
+                                    deconv={'method': 'wiener', 'beta': 0.0001},
+                                    delta=1, delta_fit=3, sigmaZ=1, sigmaXY=1.5)
+            if try_mode:
+                print('Failed', os.path.basename(save_fl))
+    np.savez_compressed(save_fl, Xh=Xh)
+
+
+def compute_fits_paral2(save_folder, fov, all_flds, redo=False, ncols=4,
+                       psf_file=psf_file, try_mode=True, old_method=False):
+
+    # save_folder: global save path
+    # all filds: ['H1_MER' ~ 'H7_MER']
+    # fov: input .zarr file name, eg. Conv_zscan__0614.zarr
+
+    t1 = time.time()
+    # (20, 110, 110)
+    psf = np.load(psf_file)
+    fld_channel_list = []
+    save_fl_list = []
+    icol_list = []
+    psf_list = []
+    for fld in all_flds:
+        # file: xxx/H1_MER/Conv_zscan__0614.zarr
+        # dast.array, shape (4, 25, 2800, 2800), dtype uint16
+        im_ = read_im(join(fld, fov))
+        im_ = np.array(im_, dtype=np.float32)
+        for icol in range(ncols - 1):
+            im__ = im_[icol]
+            tag = os.path.basename(fld)
+            # eg. Conv_zscan__0614--H1_MER--col0__Xhfits.npz
+            # path to save results in main_do_compute_fits
+            save_fl = join(save_folder,
+                           fov.split('.')[0] + '--' + tag + '--col' + str(icol) + '__Xhfits.npz')
+            if not os.path.exists(save_fl) or redo:
+                fld_channel_list.append(im__)
+                save_fl_list.append(save_fl)
+                icol_list.append(icol)
+                psf_list.append(psf)
+    t2 = time.time()
+    print('--compute_fits() reading data time: {:.2f}s--'.format(t2-t1))
+
+    # Under this setting reading data part is not parallelized, so causing worse performance
+    # reading data time: 45.64s
+    # process = 1 (--compute_fits() time: 213.95s--)
+    # process = 2 (--compute_fits() time: 147.22s--)
+    # process = 3 (--compute_fits() time: 121.19s--)
+    # process = 4 (--compute_fits() time: 163.54s--)
+    print('--starting pool--')
+    with Pool(processes=3) as pool:
+        pool.starmap(main_do_compute_fits_paral2,
+                     zip([save_folder for _ in range(len(fld_channel_list))],
+                         fld_channel_list,
+                         icol_list,
+                         save_fl_list,
+                         psf_list,
+                         [old_method for _ in range(len(fld_channel_list))],
+                         [try_mode for _ in range(len(fld_channel_list))]))
+
+
+def main_do_compute_fits_paral3(fld, save_folder, fov, icol, save_fl, psf_file, old_method, try_mode=True):
+    # channel level parallelization
+    # (20, 110, 110)
+    psf = np.load(psf_file)
+    # file: xxx/H1_MER/Conv_zscan__0614.zarr
+    # dast.array, shape (4, 25, 2800, 2800), dtype uint16
+    im_ = read_im(join(fld, fov))
+    # (25, 2800, 2800), dtype float32
+    im__ = np.array(im_[icol], dtype=np.float32)
+
+    # old_method=False
+    if old_method:
+        # previous method
+        im_n = norm_slice(im__, s=30)
+        # Xh = get_local_max(im_n,500,im_raw=im__,dic_psf=None,delta=1,delta_fit=3,dbscan=True,
+        #      return_centers=False,mins=None,sigmaZ=1,sigmaXY=1.5)
+        Xh = get_local_maxfast_tensor(im_n, th_fit=500, im_raw=im__, dic_psf=None, delta=1,
+                                      delta_fit=3, sigmaZ=1, sigmaXY=1.5, gpu=False)
+    else:
+        # new method
+        fl_med = save_folder + os.sep + 'med_col_raw' + str(icol) + '.npz'  # mistake
+        # to normalize the image?
+        if os.path.exists(fl_med):
+            im_med = np.array(np.load(fl_med)['im'], dtype=np.float32)
+            im_med = cv2.blur(im_med, (20, 20))
+            im__ = im__ / im_med * np.median(im_med)
+        try:
+            Xh = get_local_max_tile(im__, th=3600, s_=500, pad=100, psf=psf, plt_val=None,
+                                    snorm=30, gpu=True, deconv={'method': 'wiener', 'beta': 0.0001},
+                                    delta=1, delta_fit=3, sigmaZ=1, sigmaXY=1.5)
+
+        except:
+            # doesn't use gpu
+            Xh = get_local_max_tile(im__, th=3600, s_=500, pad=100, psf=psf, plt_val=None, snorm=30, gpu=False,
+                                    deconv={'method': 'wiener', 'beta': 0.0001},
+                                    delta=1, delta_fit=3, sigmaZ=1, sigmaXY=1.5)
+            if try_mode:
+                print('Failed', os.path.basename(save_fl))
+    # maybe not stored to disk
+    np.savez_compressed(save_fl, Xh=Xh)
+
+
+def compute_fits_paral3(save_folder, fov, all_flds, redo=False, ncols=4,
+                       psf_file=psf_file, try_mode=True, old_method=False):
+    # save_folder: global save path
+    # all filds: ['H1_MER' ~ 'H7_MER']
+    # fov: input .zarr file name, eg. Conv_zscan__0614.zarr
+
+    t1 = time.time()
+    # (20, 110, 110)
+    # fld_channel_list = []
+    fld_list = []
+    fov_list = []
+    icol_list = []
+    save_fl_list = []
+    # psf_list = []
+    for fld in all_flds:
+        # file: xxx/H1_MER/Conv_zscan__0614.zarr
+        # dast.array, shape (4, 25, 2800, 2800), dtype uint16
+        # im_ = read_im(join(fld, fov))
+        # im_ = np.array(im_, dtype=np.float32)
+        for icol in range(ncols - 1):
+            # im__ = im_[icol]
+            tag = os.path.basename(fld)
+            # eg. Conv_zscan__0614--H1_MER--col0__Xhfits.npz
+            # path to save results in main_do_compute_fits
+            save_fl = join(save_folder,
+                           fov.split('.')[0] + '--' + tag + '--col' + str(icol) + '__Xhfits.npz')
+            if not os.path.exists(save_fl) or redo:
+                # fld_channel_list.append(im__)
+                fld_list.append(fld)
+                fov_list.append(fov)
+                icol_list.append(icol)
+                save_fl_list.append(save_fl)
+                # psf_list.append(psf)
+    t2 = time.time()
+    print('--compute_fits() reading data time: {:.2f}s--'.format(t2 - t1))
+
+    # --compute_fits() reading data time: 0.03s--
+    # process = 1 (--compute_fits() time: 228.93s--)
+    # process = 2 (--compute_fits() time: 202.75s--)
+    # process = 3 (--compute_fits() time: 193.73s--)
+    # process = 5 (--compute_fits() time: 173.34s--)
+    # process = 10 connection crashes
+    with Pool(processes=10) as pool:
+        print('starting pool')
+        pool.starmap(main_do_compute_fits_paral3,
+                     zip(fld_list, [save_folder for _ in range(len(fld_list))], fov_list,
+                         icol_list, save_fl_list,
+                         [psf_file for _ in range(len(fld_list))],
+                         [old_method for _ in range(len(fld_list))],
+                         [try_mode for _ in range(len(fld_list))]))
 
 
 def main_do_compute_fits(save_folder, fld, fov, icol, save_fl, psf, old_method):
     # file: xxx/H1_MER/Conv_zscan__0614.zarr
     # dast.array, shape (4, 25, 2800, 2800), dtype uint16
-    im_ = read_im(fld+os.sep+fov)
+    im_ = read_im(fld + os.sep + fov)
     # shape (25, 2800, 2800), dtype float32
     im__ = np.array(im_[icol], dtype=np.float32)
 
@@ -283,7 +465,6 @@ def compute_fits(save_folder, fov, all_flds, redo=False, ncols=4,
     # all filds: ['H1_MER' ~ 'H7_MER']
     # fov: input .zarr file name, eg. Conv_zscan__0614.zarr
 
-    # --compute_fits() time: 583.52s--
     # for fld in tqdm(all_flds):
     for fld in all_flds:
         for icol in range(ncols-1):
@@ -304,15 +485,26 @@ def compute_fits(save_folder, fov, all_flds, redo=False, ncols=4,
 
 
 def compute_decoding(save_folder, fov, set_, redo=False):
-    dec = decoder_simple(save_folder,fov,set_)
-    #self.decoded_fl = self.decoded_fl.replace('decoded_','decodedNew_')
+    dec = decoder_simple(save_folder, fov, set_)
+    # self.decoded_fl = self.decoded_fl.replace('decoded_','decodedNew_')
     complete = dec.check_is_complete()
-    if complete==0 or redo:
-        #compute_drift(save_folder,fov,all_flds,set_,redo=False,gpu=False)
-        dec = decoder_simple(save_folder,fov=fov,set_=set_)
-        dec.get_XH(fov,set_,ncols=3,nbits=7,th_h=0)#number of colors match ######################################################## Could change for speed.
-        dec.XH = dec.XH[dec.XH[:,-4]>0.25] ### keep the spots that are correlated with the expected PSF for 60X
-        dec.load_library(lib_fl,nblanks=-1)
+    if complete == 0 or redo:
+        # compute_drift(save_folder,fov,all_flds,set_,redo=False,gpu=False)
+        t1 = time.time()
+        dec = decoder_simple(save_folder, fov=fov, set_=set_)
+        t2 = time.time()
+        print('decoder_simple() time: {:.2f}s--'.format(t2 - t1))
+        # number of colors match,  Could change for speed.
+        dec.get_XH(fov, set_, ncols=3, nbits=7, th_h=0)
+        t3 = time.time()
+        print('dec.get_XH() time: {:.2f}s--'.format(t3 - t2))
+        # keep the spots that are correlated with the expected PSF for 60X
+        dec.XH = dec.XH[dec.XH[:, -4] > 0.25]
+        t4 = time.time()
+        print('dec.XH[] time: {:.2f}s--'.format(t4 - t3))
+        dec.load_library(lib_fl, nblanks=-1)
+        t5 = time.time()
+        print('dec.load_library() time: {:.2f}s--'.format(t5 - t4))
         
         dec.ncols = 3
         if False:
@@ -324,10 +516,24 @@ def compute_decoding(save_folder, fov, set_, redo=False):
             dec.XH = dec.XH_save.copy()
             R = dec.XH[:,-1].astype(int)
             dec.XH[:,:3] -= dec.drift_arr[R]
-        #dec.get_inters(dinstance_th=2,enforce_color=True)# enforce_color=False
-        dec.get_inters(dinstance_th=2,nmin_bits=4,enforce_color=False,redo=True)
-        #dec.get_icodes(nmin_bits=4,method = 'top4',norm_brightness=None,nbits=24)#,is_unique=False)
-        get_icodesV2(dec,nmin_bits=4,delta_bits=None,iH=-3,redo=False,norm_brightness=-2,nbits=21,is_unique=True)
+        # dec.get_inters(dinstance_th=2,enforce_color=True)# enforce_color=False
+        dec.get_inters(dinstance_th=2, nmin_bits=4, enforce_color=False, redo=True)
+        t6 = time.time()
+        print('--dec.get_inters() time: {:.2f}s--'.format(t6 - t5))
+        # dec.get_icodes(nmin_bits=4,method = 'top4',norm_brightness=None,nbits=24)#,is_unique=False)
+
+        # before optimization:
+        # --get_icodesV2() time: 51.84s--
+        # get_icodesV2(dec, nmin_bits=4, delta_bits=None, iH=-3, redo=False, norm_brightness=-2, nbits=21, is_unique=True)
+
+        # after optimization:
+        # cpu + r0 not commented: --get_icodesV2() time: 21.33s--
+        # gpu + r0 not commented: --get_icodesV2() time: 11.36s--
+        # gpu + r0 commented: --get_icodesV2() time: 10.96s--
+        get_icodesV2_optimized(dec, nmin_bits=4, delta_bits=None, iH=-3, redo=False,norm_brightness=-2, nbits=21, is_unique=True)
+
+        t7 = time.time()
+        print('--get_icodesV2() time: {:.2f}s--'.format(t7 - t6))
 
 
 def get_iH(fld): 
@@ -369,7 +575,7 @@ def get_files(set_ifov, iHm=iHm, iHM=iHM):
     if not os.path.exists(fovs_fl):
         # only calculate one folder?
         folder_map_fovs = all_flds[0] #[fld for fld in all_flds if 'low' not in os.path.basename(fld)][0]
-        fls = glob.glob(folder_map_fovs+os.sep+'*.zarr')
+        fls = glob.glob(folder_map_fovs + os.sep + '*.zarr')
         # all the .zarr folder names, (1350,)
         fovs = np.sort([os.path.basename(fl) for fl in fls])
         np.save(fovs_fl, fovs)
@@ -379,39 +585,48 @@ def get_files(set_ifov, iHm=iHm, iHM=iHM):
     fov = None
     if ifov < len(fovs):
         fov = fovs[ifov]
-        all_flds = [fld for fld in all_flds if os.path.exists(fld+os.sep+fov)]
+        all_flds = [fld for fld in all_flds if os.path.exists(fld + os.sep + fov)]
 
     return save_folder, all_flds, fov
 
 
 def compute_main_f(save_folder, all_flds, fov, set_, ifov, redo_fits, redo_drift,
                    redo_decoding, try_mode, old_method):
+    print('save_folder: {}'.format(save_folder))
+    print('all_flds: {}'.format(all_flds))
+    print('fov: {}'.format(fov))
+    print('set_: {}'.format(set_))
+    print('psf_file: {}'.format(psf_file))
+
     print("Computing fitting on: " + str(fov))
     # print('all_flds len: {}, value: {}'.format(len(all_flds), all_flds))
 
     global start_time
     pre_fit_time = time.time()
-    print('--befor compute_fits() time: {:.2f}s--'.format(pre_fit_time - start_time))
+    print('--before compute_fits() time: {:.2f}s--'.format(pre_fit_time - start_time))
 
     # compute_fits(save_folder, fov, all_flds, redo=redo_fits, try_mode=try_mode, old_method=old_method)
-    compute_fits_paral(save_folder, fov, all_flds, redo=redo_fits, try_mode=try_mode, old_method=old_method)
+    # compute_fits_paral(save_folder, fov, all_flds, redo=redo_fits, try_mode=try_mode, old_method=old_method)
+    # compute_fits_paral(save_folder, fov, all_flds, redo=redo_fits, try_mode=try_mode, old_method=old_method)
 
     fit_time = time.time()
     print('--compute_fits() time: {:.2f}s--'.format(fit_time - pre_fit_time))
 
     print("Computing drift on: " + str(fov))
     # line below is permanetly commented
-    #compute_drift(save_folder,fov,all_flds,set_,redo=redo_drift)
+    # compute_drift(save_folder,fov,all_flds,set_,redo=redo_drift)
     t1 = time.time()
-    compute_drift_features(save_folder,fov,all_flds,set_,redo=False,gpu=False)
+    compute_drift_features(save_folder, fov, all_flds, set_, redo=False, gpu=False)
     t2 = time.time()
-    print("--compute_drift_features() time: {:.2f}s--".format(t2-t1))
-    compute_drift_V2(save_folder,fov,all_flds,set_,redo=redo_drift,gpu=False)
+    print("--compute_drift_features() time: {:.2f}s--".format(t2 - t1))
+    compute_drift_V2(save_folder, fov, all_flds, set_, redo=redo_drift, gpu=False)
     t3 = time.time()
     print("--compute_drift_V2() time: {:.2f}s--".format(t3-t2))
-    compute_decoding(save_folder,fov,set_,redo=redo_decoding)
+    # befor optimization: --compute_decoding() time: 109.33s--
+    # after optimization: --compute_decoding() time: 69.20s--
+    compute_decoding(save_folder, fov, set_, redo=redo_decoding)
     t4 = time.time()
-    print("--compute_decoding() time: {:.2f}s--".format(t4-t3))
+    print("--compute_decoding() time: {:.2f}s--".format(t4 - t3))
     exit(1)
 
 
@@ -451,6 +666,7 @@ if __name__ == '__main__':
 
     main_f(['', 614], redo_fits=True, redo_drift=True, redo_decoding=True, try_mode=False)
     exit(1)
+
     # the wrong way to multiprocessing, can be modified
     if True:
        with Pool(processes=4) as pool:

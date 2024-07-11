@@ -1,0 +1,24 @@
+- H1_MER~H7_MER: imaging rounds? 
+  - sub-directories in the directory? 0000~1349 fov? total 1000+fov?
+- image shape: (4, 25, 2800, 2800), denotes (channel, z_index, width, length)? 
+  - chanell 4 is dapi, first 3 channels are diff fl imaging/signals
+- functions: 
+  - compute_fits: image deconvolution
+  - compute_drift_features: drift correcion (to align 7 img rounds), identify the features
+  - compute_drift_V2: drift correcion, affine transformation
+  - compute_decoding: signal decoding
+    - dec.get_inters(): kdTree construction (101s, lots of on a KDTree, nearest neighbor)
+    - get_icodesV2(): 
+      - use pytorch and deploy on gpu, also save as pytorch format (reduce from 90s to 15s)
+      - one part not used
+- deconvolution does not compute channel 3?
+  - compute drift for channel 3
+- does decoding func use gpu?
+- time for each func?
+- code txt
+- texera?
+- background intro
+
+
+- Psf (point spread function) file? shape (20, 110, 110), impulse response
+- compute_fits: Does the deconvolution step at whole image level
